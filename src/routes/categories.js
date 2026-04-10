@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const supabase = require("../config/supabase");
+const requireAdminAuth = require("../middleware/requireAdminAuth");
 
 // GET /api/categories
 router.get("/", async (req, res) => {
@@ -19,7 +20,7 @@ router.get("/", async (req, res) => {
 });
 
 // POST /api/categories
-router.post("/", async (req, res) => {
+router.post("/", requireAdminAuth, async (req, res) => {
   try {
     const { name, slug, icon, color } = req.body;
     if (!name || !slug) {
@@ -41,7 +42,7 @@ router.post("/", async (req, res) => {
 });
 
 // DELETE /api/categories/:id
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", requireAdminAuth, async (req, res) => {
   try {
     const { error } = await supabase.from("categories").delete().eq("id", req.params.id);
     if (error) throw error;

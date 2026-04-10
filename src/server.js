@@ -16,6 +16,7 @@ const { isEmailDeliveryConfigured } = require("./config/resend");
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+const allowedHeaders = ["Content-Type", "Authorization"];
 
 // ============================================
 // MIDDLEWARE
@@ -23,13 +24,14 @@ const PORT = process.env.PORT || 4000;
 
 // CORS — izinkan frontend & admin panel
 const corsOrigins = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(",")
+  ? process.env.CORS_ORIGIN.split(",").map((origin) => origin.trim()).filter(Boolean)
   : ["http://localhost:3000", "http://localhost:3001"];
 
 app.use(
   cors({
     origin: corsOrigins,
     credentials: true,
+    allowedHeaders,
   })
 );
 

@@ -117,6 +117,16 @@ CREATE TABLE IF NOT EXISTS bundle_items (
   product_id UUID REFERENCES products(id) ON DELETE CASCADE
 );
 
+-- 7. Tabel Admin Users
+CREATE TABLE IF NOT EXISTS admin_users (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email TEXT NOT NULL UNIQUE,
+  role TEXT NOT NULL DEFAULT 'admin' CHECK (role IN ('admin', 'owner')),
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- ==============================================
 -- INDEXES untuk performa query
 -- ==============================================
@@ -129,6 +139,8 @@ CREATE INDEX IF NOT EXISTS idx_orders_created ON orders(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_product_accounts_product_status ON product_accounts(product_id, status);
 CREATE INDEX IF NOT EXISTS idx_product_accounts_order ON product_accounts(assigned_order_id);
+CREATE INDEX IF NOT EXISTS idx_admin_users_email ON admin_users(email);
+CREATE INDEX IF NOT EXISTS idx_admin_users_active ON admin_users(is_active);
 
 -- ==============================================
 -- ROW LEVEL SECURITY (RLS) — opsional tapi recommended
@@ -140,19 +152,33 @@ ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE product_accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bundles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bundle_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE admin_users ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Allow service role full access (backend API)
-CREATE POLICY "Service role full access" ON categories FOR ALL USING (true);
-CREATE POLICY "Service role full access" ON products FOR ALL USING (true);
-CREATE POLICY "Service role full access" ON orders FOR ALL USING (true);
-CREATE POLICY "Service role full access" ON order_items FOR ALL USING (true);
-CREATE POLICY "Service role full access" ON product_accounts FOR ALL USING (true);
-CREATE POLICY "Service role full access" ON bundles FOR ALL USING (true);
-CREATE POLICY "Service role full access" ON bundle_items FOR ALL USING (true);
+DROP POLICY IF EXISTS "Service role full access" ON categories;
+DROP POLICY IF EXISTS "Service role full access" ON products;
+DROP POLICY IF EXISTS "Service role full access" ON orders;
+DROP POLICY IF EXISTS "Service role full access" ON order_items;
+DROP POLICY IF EXISTS "Service role full access" ON product_accounts;
+DROP POLICY IF EXISTS "Service role full access" ON bundles;
+DROP POLICY IF EXISTS "Service role full access" ON bundle_items;
+DROP POLICY IF EXISTS "Service role full access" ON admin_users;
+
+CREATE POLICY "Service role full access" ON categories FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access" ON products FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access" ON orders FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access" ON order_items FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access" ON product_accounts FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access" ON bundles FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access" ON bundle_items FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access" ON admin_users FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- Policy: Allow anon read-only on products & categories (frontend)
-CREATE POLICY "Anon read products" ON products FOR SELECT USING (true);
-CREATE POLICY "Anon read categories" ON categories FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Anon read products" ON products;
+DROP POLICY IF EXISTS "Anon read categories" ON categories;
+
+CREATE POLICY "Anon read products" ON products FOR SELECT TO anon USING (true);
+CREATE POLICY "Anon read categories" ON categories FOR SELECT TO anon USING (true);
 
 -- ==============================================
 -- FUNCTIONS untuk fulfillment

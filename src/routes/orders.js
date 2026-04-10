@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const supabase = require("../config/supabase");
+const requireAdminAuth = require("../middleware/requireAdminAuth");
 const {
   createCheckoutOrder,
   getPaymentPageOrder,
@@ -26,7 +27,7 @@ const paymentViewRateLimiter = createRateLimiter({
 });
 
 // GET /api/orders — Ambil semua pesanan (dengan filter status)
-router.get("/", async (req, res) => {
+router.get("/", requireAdminAuth, async (req, res) => {
   try {
     const { status, search } = req.query;
 
@@ -92,7 +93,7 @@ router.post("/:id/payment/simulate", requirePaymentAccess, async (req, res) => {
 });
 
 // POST /api/orders/:id/fulfillment/retry — Coba kirim ulang fulfillment email
-router.post("/:id/fulfillment/retry", async (req, res) => {
+router.post("/:id/fulfillment/retry", requireAdminAuth, async (req, res) => {
   try {
     const data = await retryOrderFulfillmentById(req.params.id);
     res.json({ success: true, data });
@@ -105,7 +106,7 @@ router.post("/:id/fulfillment/retry", async (req, res) => {
 });
 
 // GET /api/orders/:id — Detail pesanan
-router.get("/:id", async (req, res) => {
+router.get("/:id", requireAdminAuth, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from("orders")
@@ -141,7 +142,7 @@ router.post("/", async (req, res) => {
 });
 
 // PATCH /api/orders/:id/status — Update status pesanan
-router.patch("/:id/status", async (req, res) => {
+router.patch("/:id/status", requireAdminAuth, async (req, res) => {
   try {
     const { status } = req.body;
     const validStatuses = ["pending", "paid", "processing", "completed", "cancelled"];
