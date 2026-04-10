@@ -89,7 +89,8 @@ router.post("/", requireAdminAuth, async (req, res) => {
 // PUT /api/products/:id — Update produk
 router.put("/:id", requireAdminAuth, async (req, res) => {
   try {
-    const updates = req.body;
+    const updates = { ...req.body };
+    delete updates.categories; // Hapus relasi sebelum update ke table utama
     updates.updated_at = new Date().toISOString();
 
     const { data, error } = await supabase

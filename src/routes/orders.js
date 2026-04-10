@@ -2,6 +2,29 @@ const express = require("express");
 const router = express.Router();
 const supabase = require("../config/supabase");
 const requireAdminAuth = require("../middleware/requireAdminAuth");
+const {
+  createCheckoutOrder,
+  getPaymentPageOrder,
+  retryOrderFulfillmentById,
+  simulateOrderPaymentById,
+  syncOrderPaymentById,
+} = require("../services/orderService");
+const { requirePaymentAccess } = require("../middleware/paymentAccess");
+const { createRateLimiter } = require("../middleware/rateLimit");
+const { respondWithError } = require("../utils/respondWithError");
+
+const paymentSyncRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  maxRequests: 10,
+  keyPrefix: "payment-sync",
+  message: "Terlalu sering memeriksa status pembayaran. Coba lagi sebentar.",
+});
+const paymentViewRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  maxRequests: 20,
+  keyPrefix: "payment-view",
+  message: "Terlalu sering membuka data pembayaran. Coba lagi sebentar.",
+});
 
 // GET /api/orders — Ambil semua pesanan (dengan filter status)
 router.get("/", requireAdminAuth, async (req, res) => {
@@ -30,6 +53,58 @@ router.get("/", requireAdminAuth, async (req, res) => {
   }
 });
 
+// GET /api/orders/:id/payment — Ambil data order untuk halaman pembayaran user
+router.get("/:id/payment", paymentViewRateLimiter, requirePaymentAccess, async (req, res) => {
+  try {
+    const data = await getPaymentPageOrder(req.params.id);
+    res.json({ success: true, data });
+  } catch (err) {
+    respondWithError(res, err, {
+      context: "GET /orders/:id/payment",
+      defaultMessage: "Gagal mengambil data pembayaran.",
+    });
+  }
+});
+
+// POST /api/orders/:id/payment/sync — Sinkronisasi status pembayaran ke Pakasir
+router.post("/:id/payment/sync", paymentSyncRateLimiter, requirePaymentAccess, async (req, res) => {
+  try {
+    const data = await syncOrderPaymentById(req.params.id);
+    res.json({ success: true, data });
+  } catch (err) {
+    respondWithError(res, err, {
+      context: "POST /orders/:id/payment/sync",
+      defaultMessage: "Gagal menyinkronkan pembayaran.",
+    });
+  }
+});
+
+// POST /api/orders/:id/payment/simulate — Simulasi pembayaran sandbox Pakasir
+router.post("/:id/payment/simulate", requirePaymentAccess, async (req, res) => {
+  try {
+    const data = await simulateOrderPaymentById(req.params.id);
+    res.json({ success: true, data });
+  } catch (err) {
+    respondWithError(res, err, {
+      context: "POST /orders/:id/payment/simulate",
+      defaultMessage: "Gagal mensimulasikan pembayaran.",
+    });
+  }
+});
+
+// POST /api/orders/:id/fulfillment/retry — Coba kirim ulang fulfillment email
+router.post("/:id/fulfillment/retry", requireAdminAuth, async (req, res) => {
+  try {
+    const data = await retryOrderFulfillmentById(req.params.id);
+    res.json({ success: true, data });
+  } catch (err) {
+    respondWithError(res, err, {
+      context: "POST /orders/:id/fulfillment/retry",
+      defaultMessage: "Gagal menjalankan ulang fulfillment order.",
+    });
+  }
+});
+
 // GET /api/orders/:id — Detail pesanan
 router.get("/:id", requireAdminAuth, async (req, res) => {
   try {
@@ -52,61 +127,17 @@ router.get("/:id", requireAdminAuth, async (req, res) => {
 // POST /api/orders — Buat pesanan baru (dari frontend checkout)
 router.post("/", async (req, res) => {
   try {
-    const { customer_name, customer_email, customer_phone, customer_notes, items } = req.body;
-
-    if (!customer_name || !customer_email || !customer_phone || !items || items.length === 0) {
-      return res.status(400).json({ success: false, error: "Data pelanggan dan item pesanan wajib diisi" });
-    }
-
-    // Generate order ID
-    const orderId = `DSA-${Date.now().toString(36).toUpperCase()}`;
-
-    // Hitung total
-    const totalPrice = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-
-    // Insert order
-    const { data: order, error: orderError } = await supabase
-      .from("orders")
-      .insert({
-        order_id: orderId,
-        customer_name,
-        customer_email,
-        customer_phone,
-        customer_notes: customer_notes || "",
-        total_price: totalPrice,
-        status: "pending",
-        payment_method: "qris",
-      })
-      .select()
-      .single();
-
-    if (orderError) throw orderError;
-
-    // Insert order items
-    const orderItems = items.map((item) => ({
-      order_id: order.id,
-      product_id: item.product_id || null,
-      product_name: item.name,
-      quantity: item.quantity,
-      price: item.price,
-    }));
-
-    const { error: itemsError } = await supabase
-      .from("order_items")
-      .insert(orderItems);
-
-    if (itemsError) throw itemsError;
+    const data = await createCheckoutOrder(req.body);
 
     res.status(201).json({
       success: true,
-      data: {
-        ...order,
-        items: orderItems,
-      },
+      data,
     });
   } catch (err) {
-    console.error("POST /orders error:", err.message);
-    res.status(500).json({ success: false, error: err.message });
+    respondWithError(res, err, {
+      context: "POST /orders",
+      defaultMessage: "Gagal membuat pesanan.",
+    });
   }
 });
 
