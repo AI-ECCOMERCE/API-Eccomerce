@@ -1,10 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const supabase = require("../config/supabase");
-const { v4: uuidv4 } = require("uuid");
+const requireAdminAuth = require("../middleware/requireAdminAuth");
 
 // GET /api/orders — Ambil semua pesanan (dengan filter status)
-router.get("/", async (req, res) => {
+router.get("/", requireAdminAuth, async (req, res) => {
   try {
     const { status, search } = req.query;
 
@@ -31,7 +31,7 @@ router.get("/", async (req, res) => {
 });
 
 // GET /api/orders/:id — Detail pesanan
-router.get("/:id", async (req, res) => {
+router.get("/:id", requireAdminAuth, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from("orders")
@@ -111,7 +111,7 @@ router.post("/", async (req, res) => {
 });
 
 // PATCH /api/orders/:id/status — Update status pesanan
-router.patch("/:id/status", async (req, res) => {
+router.patch("/:id/status", requireAdminAuth, async (req, res) => {
   try {
     const { status } = req.body;
     const validStatuses = ["pending", "paid", "processing", "completed", "cancelled"];

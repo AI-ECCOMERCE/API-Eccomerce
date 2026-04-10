@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const supabase = require("../config/supabase");
+const requireAdminAuth = require("../middleware/requireAdminAuth");
 
 // GET /api/products — Ambil semua produk (dengan filter opsional)
 router.get("/", async (req, res) => {
@@ -52,7 +53,7 @@ router.get("/:id", async (req, res) => {
 });
 
 // POST /api/products — Tambah produk baru
-router.post("/", async (req, res) => {
+router.post("/", requireAdminAuth, async (req, res) => {
   try {
     const { name, description, price, original_price, category_slug, stock, icon, gradient, shadow, status } = req.body;
 
@@ -86,7 +87,7 @@ router.post("/", async (req, res) => {
 });
 
 // PUT /api/products/:id — Update produk
-router.put("/:id", async (req, res) => {
+router.put("/:id", requireAdminAuth, async (req, res) => {
   try {
     const updates = req.body;
     updates.updated_at = new Date().toISOString();
@@ -107,7 +108,7 @@ router.put("/:id", async (req, res) => {
 });
 
 // DELETE /api/products/:id — Hapus produk
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", requireAdminAuth, async (req, res) => {
   try {
     const { error } = await supabase
       .from("products")

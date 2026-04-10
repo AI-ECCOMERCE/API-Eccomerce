@@ -1,6 +1,9 @@
 const express = require("express");
 const router = express.Router();
 const supabase = require("../config/supabase");
+const requireAdminAuth = require("../middleware/requireAdminAuth");
+
+router.use(requireAdminAuth);
 
 // GET /api/customers — Ambil semua pelanggan unik
 router.get("/", async (req, res) => {
