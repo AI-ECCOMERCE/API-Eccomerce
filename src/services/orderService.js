@@ -33,6 +33,15 @@ const mapOrderItem = (item) => ({
   price: item.price,
 });
 
+const isMissingFulfillmentSchemaError = (error) => {
+  const message = String(error?.message || "");
+
+  return (
+    message.includes("fulfillment_") &&
+    message.toLowerCase().includes("schema cache")
+  );
+};
+
 const serializeOrder = (order) => {
   const paymentAccess = createPaymentAccessToken({
     orderId: order.id,
@@ -357,6 +366,27 @@ const getPaymentPageOrder = async (id) => {
   return serializeOrder(order);
 };
 
+const resolveOrderAfterPayment = async (order) => {
+  if (order.payment_status !== "completed") {
+    return order;
+  }
+
+  try {
+    await fulfillPaidOrder(order.id);
+    return await getOrderById(order.id);
+  } catch (error) {
+    if (isMissingFulfillmentSchemaError(error)) {
+      console.warn(
+        "Fulfillment schema belum siap, lanjutkan status pembayaran tanpa delivery automation:",
+        error.message
+      );
+      return order;
+    }
+
+    throw error;
+  }
+};
+
 const syncOrderPaymentById = async (id) => {
   const order = await getOrderById(id);
   const payment = await getPaymentDetail({
@@ -377,13 +407,8 @@ const syncOrderPaymentById = async (id) => {
     throw error;
   }
 
-  if (data.payment_status === "completed") {
-    await fulfillPaidOrder(data.id);
-    const fulfilledOrder = await getOrderById(data.id);
-    return serializeOrder(fulfilledOrder);
-  }
-
-  return serializeOrder(data);
+  const resolvedOrder = await resolveOrderAfterPayment(data);
+  return serializeOrder(resolvedOrder);
 };
 
 const simulateOrderPaymentById = async (id) => {
@@ -419,13 +444,8 @@ const simulateOrderPaymentById = async (id) => {
     throw error;
   }
 
-  if (data.payment_status === "completed") {
-    await fulfillPaidOrder(data.id);
-    const fulfilledOrder = await getOrderById(data.id);
-    return serializeOrder(fulfilledOrder);
-  }
-
-  return serializeOrder(data);
+  const resolvedOrder = await resolveOrderAfterPayment(data);
+  return serializeOrder(resolvedOrder);
 };
 
 const handlePakasirWebhook = async (payload) => {
@@ -455,7 +475,20 @@ const retryOrderFulfillmentById = async (id) => {
     );
   }
 
-  await fulfillPaidOrder(order.id);
+  try {
+    await fulfillPaidOrder(order.id);
+  } catch (error) {
+    if (isMissingFulfillmentSchemaError(error)) {
+      throw createHttpError(
+        "Kolom fulfillment email belum tersedia di database. Jalankan migration Resend fulfillment terlebih dahulu.",
+        503,
+        { expose: true }
+      );
+    }
+
+    throw error;
+  }
+
   const updatedOrder = await getOrderById(order.id);
   return serializeOrder(updatedOrder);
 };

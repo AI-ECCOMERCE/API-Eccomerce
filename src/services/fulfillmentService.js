@@ -257,6 +257,15 @@ const fulfillPaidOrder = async (orderId) => {
     return getFulfillmentOrderById(order.id);
   } catch (error) {
     console.error("Order fulfillment error:", error.message);
+
+    if (error?.isProviderConfigError) {
+      await markManualReview(
+        order.id,
+        error.message || "Konfigurasi email otomatis perlu diperiksa."
+      );
+      return getFulfillmentOrderById(order.id);
+    }
+
     await markFulfillmentFailed(
       order.id,
       error.message || "Fulfillment email gagal diproses."

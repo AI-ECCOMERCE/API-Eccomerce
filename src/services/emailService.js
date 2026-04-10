@@ -154,6 +154,51 @@ const buildEmailText = ({ order, deliveryGroups }) => {
   ].join("\n");
 };
 
+const createResendError = (message, options = {}) => {
+  const error = new Error(message);
+  error.code = options.code || "RESEND_SEND_ERROR";
+  error.isProviderConfigError = Boolean(options.isProviderConfigError);
+  return error;
+};
+
+const normalizeResendSendError = (error) => {
+  const providerMessage = String(error?.message || "").trim();
+
+  if (providerMessage === "Application not found") {
+    return createResendError(
+      "Resend API key tidak terhubung ke aplikasi atau workspace yang aktif. Buat API key baru dari dashboard Resend lalu update RESEND_API_KEY.",
+      {
+        code: "RESEND_APPLICATION_NOT_FOUND",
+        isProviderConfigError: true,
+      }
+    );
+  }
+
+  if (providerMessage.toLowerCase().includes("invalid api key")) {
+    return createResendError(
+      "RESEND_API_KEY tidak valid. Gunakan API key aktif dari dashboard Resend.",
+      {
+        code: "RESEND_INVALID_API_KEY",
+        isProviderConfigError: true,
+      }
+    );
+  }
+
+  if (providerMessage.toLowerCase().includes("domain is not verified")) {
+    return createResendError(
+      "Domain pada RESEND_FROM_EMAIL belum terverifikasi di Resend. Verifikasi domain atau sesuaikan sender email dengan domain yang sudah verified.",
+      {
+        code: "RESEND_DOMAIN_NOT_VERIFIED",
+        isProviderConfigError: true,
+      }
+    );
+  }
+
+  return createResendError(
+    providerMessage || "Gagal mengirim email fulfillment."
+  );
+};
+
 const sendOrderDeliveryEmail = async ({ order, deliveryGroups }) => {
   const resend = getResendClient();
   const { fromEmail, replyToEmail } = getResendConfig();
@@ -168,7 +213,7 @@ const sendOrderDeliveryEmail = async ({ order, deliveryGroups }) => {
   });
 
   if (error) {
-    throw new Error(error.message || "Gagal mengirim email fulfillment.");
+    throw normalizeResendSendError(error);
   }
 
   return data;
