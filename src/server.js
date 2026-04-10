@@ -8,6 +8,11 @@ const orderRoutes = require("./routes/orders");
 const customerRoutes = require("./routes/customers");
 const categoryRoutes = require("./routes/categories");
 const dashboardRoutes = require("./routes/dashboard");
+const paymentRoutes = require("./routes/payments");
+const productAccountRoutes = require("./routes/productAccounts");
+const { isPaymentGatewayConfigured } = require("./config/pakasir");
+const { getPaymentAccessSecret } = require("./config/security");
+const { isEmailDeliveryConfigured } = require("./config/resend");
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -48,6 +53,17 @@ app.get("/api/health", (req, res) => {
   res.json({
     status: "ok",
     service: "DesignAI Store API",
+    payment_gateway: {
+      provider: "pakasir",
+      configured: isPaymentGatewayConfigured(),
+    },
+    payment_security: {
+      access_token_ready: Boolean(process.env.PAYMENT_ACCESS_SECRET),
+    },
+    email_delivery: {
+      provider: "resend",
+      configured: isEmailDeliveryConfigured(),
+    },
     timestamp: new Date().toISOString(),
   });
 });
@@ -58,6 +74,8 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/customers", customerRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/payments", paymentRoutes);
+app.use("/api/product-accounts", productAccountRoutes);
 
 // 404 handler
 app.use((req, res) => {
@@ -73,6 +91,13 @@ app.use((err, req, res, next) => {
 // ============================================
 // START SERVER
 // ============================================
+
+try {
+  getPaymentAccessSecret();
+} catch (error) {
+  console.error("❌ Payment security error:", error.message);
+  process.exit(1);
+}
 
 app.listen(PORT, () => {
   console.log(`
