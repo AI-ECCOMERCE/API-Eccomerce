@@ -1,9 +1,12 @@
 const express = require("express");
 
 const supabase = require("../config/supabase");
+const requireAdminAuth = require("../middleware/requireAdminAuth");
 const { createHttpError, respondWithError } = require("../utils/respondWithError");
 
 const router = express.Router();
+
+router.use(requireAdminAuth);
 
 const sanitizeText = (value) => String(value || "").trim();
 

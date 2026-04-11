@@ -16,6 +16,7 @@ const {
 const { createPaymentAccessToken } = require("../config/security");
 const { createHttpError } = require("../utils/respondWithError");
 const { fulfillPaidOrder } = require("./fulfillmentService");
+const { invalidateOrderDerivedCaches } = require("../lib/cache/adminCache");
 
 const ORDER_SELECT = `
   *,
@@ -408,6 +409,7 @@ const syncOrderPaymentById = async (id) => {
   }
 
   const resolvedOrder = await resolveOrderAfterPayment(data);
+  invalidateOrderDerivedCaches();
   return serializeOrder(resolvedOrder);
 };
 
@@ -445,6 +447,7 @@ const simulateOrderPaymentById = async (id) => {
   }
 
   const resolvedOrder = await resolveOrderAfterPayment(data);
+  invalidateOrderDerivedCaches();
   return serializeOrder(resolvedOrder);
 };
 

@@ -92,6 +92,7 @@ CREATE TABLE IF NOT EXISTS product_accounts (
   status TEXT NOT NULL DEFAULT 'available' CHECK (status IN ('available', 'reserved', 'delivered', 'disabled')),
   assigned_order_id UUID DEFAULT NULL REFERENCES orders(id) ON DELETE SET NULL,
   assigned_order_item_id UUID DEFAULT NULL REFERENCES order_items(id) ON DELETE SET NULL,
+  sales_applied_at TIMESTAMPTZ DEFAULT NULL,
   reserved_at TIMESTAMPTZ DEFAULT NULL,
   delivered_at TIMESTAMPTZ DEFAULT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -230,5 +231,51 @@ BEGIN
     stock = GREATEST(COALESCE(stock, 0) - GREATEST(p_quantity, 0), 0),
     updated_at = NOW()
   WHERE id = p_product_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION apply_order_item_sales(
+  p_order_item_id UUID,
+  p_product_id UUID,
+  p_quantity INTEGER
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  applied_count INTEGER;
+BEGIN
+  WITH target_accounts AS (
+    SELECT id
+    FROM product_accounts
+    WHERE assigned_order_item_id = p_order_item_id
+      AND product_id = p_product_id
+      AND sales_applied_at IS NULL
+    ORDER BY created_at ASC
+    FOR UPDATE
+    LIMIT GREATEST(p_quantity, 0)
+  ), updated_accounts AS (
+    UPDATE product_accounts
+    SET
+      sales_applied_at = NOW(),
+      updated_at = NOW()
+    WHERE id IN (SELECT id FROM target_accounts)
+    RETURNING id
+  )
+  SELECT COUNT(*) INTO applied_count
+  FROM updated_accounts;
+
+  IF applied_count = 0 THEN
+    RETURN FALSE;
+  END IF;
+
+  UPDATE products
+  SET
+    sold = COALESCE(sold, 0) + applied_count,
+    stock = GREATEST(COALESCE(stock, 0) - applied_count, 0),
+    updated_at = NOW()
+  WHERE id = p_product_id;
+
+  RETURN TRUE;
 END;
 $$;

@@ -3,6 +3,12 @@ const router = express.Router();
 const supabase = require("../config/supabase");
 const requireAdminAuth = require("../middleware/requireAdminAuth");
 const {
+  adminCache,
+  ADMIN_CACHE_TTLS,
+  getOrdersSummaryCacheKey,
+  invalidateOrderDerivedCaches,
+} = require("../lib/cache/adminCache");
+const {
   createCheckoutOrder,
   getPaymentPageOrder,
   retryOrderFulfillmentById,
@@ -25,6 +31,50 @@ const paymentViewRateLimiter = createRateLimiter({
   keyPrefix: "payment-view",
   message: "Terlalu sering membuka data pembayaran. Coba lagi sebentar.",
 });
+
+const getOrdersSummaryData = async (sinceDate = null) => {
+  const pendingOrdersQuery = supabase
+    .from("orders")
+    .select("*", { count: "exact", head: true })
+    .in("status", ["pending", "paid"]);
+
+  const unreadOrdersQuery = supabase
+    .from("orders")
+    .select("*", { count: "exact", head: true });
+
+  if (sinceDate) {
+    unreadOrdersQuery.gt("created_at", sinceDate.toISOString());
+  }
+
+  const recentPendingOrdersQuery = supabase
+    .from("orders")
+    .select("id, order_id, customer_name, status, created_at")
+    .in("status", ["pending", "paid"])
+    .order("created_at", { ascending: false })
+    .limit(5);
+
+  const [pendingOrdersResult, unreadOrdersResult, recentPendingOrdersResult] =
+    await Promise.all([
+      pendingOrdersQuery,
+      unreadOrdersQuery,
+      recentPendingOrdersQuery,
+    ]);
+
+  const firstError =
+    pendingOrdersResult.error ||
+    unreadOrdersResult.error ||
+    recentPendingOrdersResult.error;
+
+  if (firstError) {
+    throw firstError;
+  }
+
+  return {
+    pending_orders: pendingOrdersResult.count || 0,
+    unread_orders: unreadOrdersResult.count || 0,
+    recent_pending_orders: recentPendingOrdersResult.data || [],
+  };
+};
 
 // GET /api/orders — Ambil semua pesanan (dengan filter status)
 router.get("/", requireAdminAuth, async (req, res) => {
@@ -49,6 +99,29 @@ router.get("/", requireAdminAuth, async (req, res) => {
     res.json({ success: true, data });
   } catch (err) {
     console.error("GET /orders error:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/orders/summary — Ringkasan singkat untuk badge/sidebar admin
+router.get("/summary", requireAdminAuth, async (req, res) => {
+  try {
+    const sinceParam = Array.isArray(req.query.since) ? req.query.since[0] : req.query.since;
+    const normalizedSince = typeof sinceParam === "string" ? sinceParam.trim() : "";
+    const sinceDate = normalizedSince ? new Date(normalizedSince) : null;
+    const hasValidSince = Boolean(sinceDate && !Number.isNaN(sinceDate.getTime()));
+
+    const data = hasValidSince
+      ? await getOrdersSummaryData(sinceDate)
+      : await adminCache.getOrSet(
+          getOrdersSummaryCacheKey("all"),
+          ADMIN_CACHE_TTLS.ordersSummary,
+          async () => getOrdersSummaryData()
+        );
+
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error("GET /orders/summary error:", err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -128,6 +201,7 @@ router.get("/:id", requireAdminAuth, async (req, res) => {
 router.post("/", async (req, res) => {
   try {
     const data = await createCheckoutOrder(req.body);
+    invalidateOrderDerivedCaches();
 
     res.status(201).json({
       success: true,
@@ -159,6 +233,7 @@ router.patch("/:id/status", requireAdminAuth, async (req, res) => {
       .single();
 
     if (error) throw error;
+    invalidateOrderDerivedCaches();
     res.json({ success: true, data });
   } catch (err) {
     console.error("PATCH /orders/:id/status error:", err.message);

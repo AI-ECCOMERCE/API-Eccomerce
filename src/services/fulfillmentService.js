@@ -1,5 +1,6 @@
 const supabase = require("../config/supabase");
 const { isEmailDeliveryConfigured } = require("../config/resend");
+const { invalidateOrderDerivedCaches } = require("../lib/cache/adminCache");
 const { sendOrderDeliveryEmail } = require("./emailService");
 
 const FULFILLMENT_ORDER_SELECT = `
@@ -126,8 +127,9 @@ const markAccountsDelivered = async (orderId) => {
   }
 };
 
-const applyProductSales = async (productId, quantity) => {
-  const { error } = await supabase.rpc("apply_product_sales", {
+const applyOrderItemSales = async (orderItemId, productId, quantity) => {
+  const { data, error } = await supabase.rpc("apply_order_item_sales", {
+    p_order_item_id: orderItemId,
     p_product_id: productId,
     p_quantity: quantity,
   });
@@ -135,6 +137,8 @@ const applyProductSales = async (productId, quantity) => {
   if (error) {
     throw error;
   }
+
+  return Boolean(data);
 };
 
 const buildDeliveryGroups = async (order) => {
@@ -218,26 +222,30 @@ const fulfillPaidOrder = async (orderId) => {
     return order;
   }
 
-  if (!isEmailDeliveryConfigured()) {
-    await markManualReview(
-      order.id,
-      "Email otomatis belum aktif. Isi konfigurasi Resend terlebih dahulu."
-    );
-    return getFulfillmentOrderById(order.id);
-  }
-
-  const started = await tryStartFulfillment(order.id);
-
-  if (!started) {
-    return getFulfillmentOrderById(order.id);
-  }
+  let shouldInvalidateOrderDerivedCaches = false;
 
   try {
+    if (!isEmailDeliveryConfigured()) {
+      await markManualReview(
+        order.id,
+        "Email otomatis belum aktif. Isi konfigurasi Resend terlebih dahulu."
+      );
+      shouldInvalidateOrderDerivedCaches = true;
+      return await getFulfillmentOrderById(order.id);
+    }
+
+    const started = await tryStartFulfillment(order.id);
+
+    if (!started) {
+      return await getFulfillmentOrderById(order.id);
+    }
+
     const deliveryResult = await buildDeliveryGroups(order);
 
     if (!deliveryResult.success) {
       await markManualReview(order.id, deliveryResult.message);
-      return getFulfillmentOrderById(order.id);
+      shouldInvalidateOrderDerivedCaches = true;
+      return await getFulfillmentOrderById(order.id);
     }
 
     const emailResult = await sendOrderDeliveryEmail({
@@ -248,13 +256,14 @@ const fulfillPaidOrder = async (orderId) => {
     await markAccountsDelivered(order.id);
 
     for (const item of order.order_items || []) {
-      if (item.product_id) {
-        await applyProductSales(item.product_id, item.quantity);
+      if (item.id && item.product_id) {
+        await applyOrderItemSales(item.id, item.product_id, item.quantity);
       }
     }
 
     await markFulfillmentSuccess(order, emailResult?.id || null);
-    return getFulfillmentOrderById(order.id);
+    shouldInvalidateOrderDerivedCaches = true;
+    return await getFulfillmentOrderById(order.id);
   } catch (error) {
     console.error("Order fulfillment error:", error.message);
 
@@ -263,14 +272,20 @@ const fulfillPaidOrder = async (orderId) => {
         order.id,
         error.message || "Konfigurasi email otomatis perlu diperiksa."
       );
-      return getFulfillmentOrderById(order.id);
+      shouldInvalidateOrderDerivedCaches = true;
+      return await getFulfillmentOrderById(order.id);
     }
 
     await markFulfillmentFailed(
       order.id,
       error.message || "Fulfillment email gagal diproses."
     );
-    return getFulfillmentOrderById(order.id);
+    shouldInvalidateOrderDerivedCaches = true;
+    return await getFulfillmentOrderById(order.id);
+  } finally {
+    if (shouldInvalidateOrderDerivedCaches) {
+      invalidateOrderDerivedCaches();
+    }
   }
 };
 
