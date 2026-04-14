@@ -22,6 +22,16 @@ const EMAIL_STATUSES = {
   FAILED: "failed",
 };
 
+const isMissingFulfillmentSchemaError = (error) => {
+  const message = String(error?.message || "").toLowerCase();
+
+  return (
+    message.includes("schema cache") ||
+    message.includes("could not find the function public.apply_order_item_sales") ||
+    message.includes("could not find the function public.claim_product_account")
+  );
+};
+
 const getFulfillmentOrderById = async (orderId) => {
   const { data, error } = await supabase
     .from("orders")
@@ -248,11 +258,6 @@ const fulfillPaidOrder = async (orderId) => {
       return await getFulfillmentOrderById(order.id);
     }
 
-    const emailResult = await sendOrderDeliveryEmail({
-      order,
-      deliveryGroups: deliveryResult.groups,
-    });
-
     await markAccountsDelivered(order.id);
 
     for (const item of order.order_items || []) {
@@ -260,6 +265,12 @@ const fulfillPaidOrder = async (orderId) => {
         await applyOrderItemSales(item.id, item.product_id, item.quantity);
       }
     }
+
+    // Kirim email setelah inventory bookkeeping selesai agar retry tidak memicu email ganda.
+    const emailResult = await sendOrderDeliveryEmail({
+      order,
+      deliveryGroups: deliveryResult.groups,
+    });
 
     await markFulfillmentSuccess(order, emailResult?.id || null);
     shouldInvalidateOrderDerivedCaches = true;
@@ -271,6 +282,15 @@ const fulfillPaidOrder = async (orderId) => {
       await markManualReview(
         order.id,
         error.message || "Konfigurasi email otomatis perlu diperiksa."
+      );
+      shouldInvalidateOrderDerivedCaches = true;
+      return await getFulfillmentOrderById(order.id);
+    }
+
+    if (isMissingFulfillmentSchemaError(error)) {
+      await markManualReview(
+        order.id,
+        "Schema fulfillment di Supabase belum lengkap. Jalankan migration Resend fulfillment terlebih dahulu."
       );
       shouldInvalidateOrderDerivedCaches = true;
       return await getFulfillmentOrderById(order.id);
