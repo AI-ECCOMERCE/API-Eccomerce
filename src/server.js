@@ -13,10 +13,11 @@ const productAccountRoutes = require("./routes/productAccounts");
 const { isPaymentGatewayConfigured } = require("./config/pakasir");
 const { getPaymentAccessSecret } = require("./config/security");
 const { isEmailDeliveryConfigured } = require("./config/resend");
+const { PAYMENT_ACCESS_HEADER } = require("./middleware/paymentAccess");
 
 const app = express();
 const PORT = process.env.PORT || 4000;
-const allowedHeaders = ["Content-Type", "Authorization"];
+const allowedHeaders = ["Content-Type", "Authorization", PAYMENT_ACCESS_HEADER];
 
 // ============================================
 // MIDDLEWARE
