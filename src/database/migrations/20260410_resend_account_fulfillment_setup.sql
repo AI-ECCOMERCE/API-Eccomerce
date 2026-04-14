@@ -25,6 +25,15 @@ ALTER TABLE orders
   ADD COLUMN IF NOT EXISTS fulfillment_error TEXT DEFAULT NULL;
 
 ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS fulfillment_email_provider_status TEXT DEFAULT NULL;
+
+ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS fulfillment_email_delivered_at TIMESTAMPTZ DEFAULT NULL;
+
+ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS fulfillment_email_last_event_at TIMESTAMPTZ DEFAULT NULL;
+
+ALTER TABLE orders
   DROP CONSTRAINT IF EXISTS orders_fulfillment_status_check;
 
 ALTER TABLE orders
@@ -69,6 +78,9 @@ CREATE INDEX IF NOT EXISTS idx_product_accounts_product_status
 
 CREATE INDEX IF NOT EXISTS idx_product_accounts_order
   ON product_accounts(assigned_order_id);
+
+CREATE INDEX IF NOT EXISTS idx_orders_fulfillment_email_id
+  ON orders(fulfillment_email_id);
 
 CREATE OR REPLACE FUNCTION claim_product_account(
   p_product_id UUID,

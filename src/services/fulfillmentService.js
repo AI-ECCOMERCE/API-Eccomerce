@@ -214,6 +214,8 @@ const markFulfillmentSuccess = async (order, emailId) => {
     fulfillment_email_status: EMAIL_STATUSES.SENT,
     fulfillment_email_id: emailId || null,
     fulfillment_email_sent_at: completedAt,
+    fulfillment_email_provider_status: emailId ? "sent" : null,
+    fulfillment_email_last_event_at: completedAt,
     fulfillment_error: null,
   });
 };

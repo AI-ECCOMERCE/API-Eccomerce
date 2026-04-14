@@ -66,6 +66,9 @@ CREATE TABLE IF NOT EXISTS orders (
   fulfillment_email_status TEXT DEFAULT 'pending' CHECK (fulfillment_email_status IN ('pending', 'sent', 'failed')),
   fulfillment_email_id TEXT DEFAULT NULL,
   fulfillment_email_sent_at TIMESTAMPTZ DEFAULT NULL,
+  fulfillment_email_provider_status TEXT DEFAULT NULL,
+  fulfillment_email_delivered_at TIMESTAMPTZ DEFAULT NULL,
+  fulfillment_email_last_event_at TIMESTAMPTZ DEFAULT NULL,
   fulfillment_error TEXT DEFAULT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -138,6 +141,7 @@ CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_payment_status ON orders(payment_status);
 CREATE INDEX IF NOT EXISTS idx_orders_email ON orders(customer_email);
 CREATE INDEX IF NOT EXISTS idx_orders_created ON orders(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_fulfillment_email_id ON orders(fulfillment_email_id);
 CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_product_accounts_product_status ON product_accounts(product_id, status);
 CREATE INDEX IF NOT EXISTS idx_product_accounts_order ON product_accounts(assigned_order_id);

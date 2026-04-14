@@ -12,7 +12,10 @@ const paymentRoutes = require("./routes/payments");
 const productAccountRoutes = require("./routes/productAccounts");
 const { isPaymentGatewayConfigured } = require("./config/pakasir");
 const { getPaymentAccessSecret } = require("./config/security");
-const { isEmailDeliveryConfigured } = require("./config/resend");
+const {
+  isEmailDeliveryConfigured,
+  isResendWebhookConfigured,
+} = require("./config/resend");
 const { PAYMENT_ACCESS_HEADER } = require("./middleware/paymentAccess");
 
 const app = express();
@@ -37,7 +40,13 @@ app.use(
 );
 
 // Parse JSON body
-app.use(express.json());
+app.use(
+  express.json({
+    verify: (req, res, buf) => {
+      req.rawBody = buf.toString();
+    },
+  })
+);
 
 // Request logger (development only)
 if (process.env.NODE_ENV === "development") {
@@ -66,6 +75,7 @@ app.get("/api/health", (req, res) => {
     email_delivery: {
       provider: "resend",
       configured: isEmailDeliveryConfigured(),
+      webhook_configured: isResendWebhookConfigured(),
     },
     timestamp: new Date().toISOString(),
   });

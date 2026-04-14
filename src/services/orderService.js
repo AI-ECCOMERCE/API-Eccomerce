@@ -83,8 +83,11 @@ const serializeOrder = (order) => {
       emailStatus: order.fulfillment_email_status || "pending",
       emailId: order.fulfillment_email_id || null,
       sentAt: order.fulfillment_email_sent_at || null,
+      deliveredAt: order.fulfillment_email_delivered_at || null,
+      providerStatus: order.fulfillment_email_provider_status || null,
+      lastEventAt: order.fulfillment_email_last_event_at || null,
       completedAt: order.fulfillment_completed_at || null,
-      error: order.fulfillment_error ? "delivery_issue" : null,
+      error: order.fulfillment_error || null,
     },
     paymentAccess,
   };

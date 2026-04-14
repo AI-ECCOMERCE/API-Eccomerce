@@ -1,6 +1,7 @@
 const express = require("express");
 
 const { handlePakasirWebhook } = require("../services/orderService");
+const { processResendWebhook } = require("../services/resendWebhookService");
 const { createRateLimiter } = require("../middleware/rateLimit");
 const { respondWithError } = require("../utils/respondWithError");
 
@@ -25,6 +26,26 @@ router.post("/pakasir/webhook", webhookRateLimiter, async (req, res) => {
     respondWithError(res, error, {
       context: "POST /payments/pakasir/webhook",
       defaultMessage: "Webhook Pakasir gagal diproses.",
+    });
+  }
+});
+
+router.post("/resend/webhook", webhookRateLimiter, async (req, res) => {
+  try {
+    const data = await processResendWebhook({
+      payload: req.rawBody || JSON.stringify(req.body || {}),
+      headers: req.headers,
+    });
+
+    res.json({
+      success: true,
+      message: "Webhook Resend diterima.",
+      data,
+    });
+  } catch (error) {
+    respondWithError(res, error, {
+      context: "POST /payments/resend/webhook",
+      defaultMessage: "Webhook Resend gagal diproses.",
     });
   }
 });

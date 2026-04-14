@@ -4,11 +4,17 @@ const getResendConfig = () => ({
   apiKey: String(process.env.RESEND_API_KEY || "").trim(),
   fromEmail: String(process.env.RESEND_FROM_EMAIL || "").trim(),
   replyToEmail: String(process.env.RESEND_REPLY_TO || "").trim(),
+  webhookSecret: String(process.env.RESEND_WEBHOOK_SECRET || "").trim(),
 });
 
 const isEmailDeliveryConfigured = () => {
   const { apiKey, fromEmail } = getResendConfig();
   return Boolean(apiKey && fromEmail);
+};
+
+const isResendWebhookConfigured = () => {
+  const { webhookSecret } = getResendConfig();
+  return Boolean(webhookSecret);
 };
 
 let resendClient = null;
@@ -33,4 +39,5 @@ module.exports = {
   getResendClient,
   getResendConfig,
   isEmailDeliveryConfigured,
+  isResendWebhookConfigured,
 };
