@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS products (
   description TEXT DEFAULT '',
   price INTEGER NOT NULL DEFAULT 0,
   original_price INTEGER DEFAULT 0,
+  parent_id UUID REFERENCES products(id) ON DELETE CASCADE,
   category_slug TEXT REFERENCES categories(slug) ON DELETE SET NULL,
   stock INTEGER DEFAULT 0,
   sold INTEGER DEFAULT 0,

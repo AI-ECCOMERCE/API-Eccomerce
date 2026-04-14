@@ -90,7 +90,7 @@ router.get("/", requireAdminAuth, async (req, res) => {
       query = query.eq("status", status);
     }
     if (search) {
-      query = query.or(`order_id.ilike.%${search}%,customer_name.ilike.%${search}%`);
+      query = query.or(`order_id.ilike.%${search}%,customer_name.ilike.%${search}%,customer_email.ilike.%${search}%`);
     }
 
     const { data, error } = await query;

@@ -19,7 +19,7 @@ router.get("/", async (req, res) => {
       async () => {
         const { data, error } = await supabase
           .from("orders")
-          .select("customer_name, customer_email, customer_phone, total_price, created_at")
+          .select("id, customer_name, customer_email, customer_phone, total_price, created_at")
           .order("created_at", { ascending: false });
 
         if (error) throw error;
@@ -36,10 +36,12 @@ router.get("/", async (req, res) => {
               total_orders: 0,
               total_spent: 0,
               last_order: order.created_at,
+              order_ids: [],
             };
           }
           customerMap[key].total_orders += 1;
           customerMap[key].total_spent += order.total_price;
+          if (order.id) customerMap[key].order_ids.push(order.id);
         });
 
         return Object.values(customerMap).sort((a, b) => b.total_spent - a.total_spent);
