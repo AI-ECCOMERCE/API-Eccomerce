@@ -1,5 +1,9 @@
 const { getResendClient, getResendConfig } = require("../config/resend");
 
+const STORE_NAME = "Poinstore";
+const STORE_URL = "https://www.poinstore.my.id";
+const DEFAULT_SUPPORT_EMAIL = "support@poinstore.my.id";
+
 const escapeHtml = (value) =>
   String(value || "")
     .replace(/&/g, "&amp;")
@@ -10,6 +14,30 @@ const escapeHtml = (value) =>
 
 const formatCurrency = (amount) =>
   `Rp ${Number(amount || 0).toLocaleString("id-ID")}`;
+
+const extractEmailAddress = (value) => {
+  const raw = String(value || "").trim();
+  const match = raw.match(/<([^>]+)>/);
+
+  return String(match?.[1] || raw).trim().toLowerCase();
+};
+
+const extractEmailDomain = (value) => {
+  const address = extractEmailAddress(value);
+  const [, domain = ""] = address.split("@");
+  return domain;
+};
+
+const getSupportEmail = ({ fromEmail, replyToEmail }) =>
+  extractEmailAddress(replyToEmail) ||
+  extractEmailAddress(fromEmail) ||
+  DEFAULT_SUPPORT_EMAIL;
+
+const getEmailPreheader = (order) =>
+  `Detail pesanan ${order.order_id} dan akses akun dari ${STORE_NAME}.`;
+
+const buildSecurityNote = () =>
+  "Untuk keamanan, jangan teruskan email ini ke orang lain.";
 
 const buildCredentialsSection = (deliveryGroups) =>
   deliveryGroups
@@ -72,12 +100,15 @@ const buildCredentialsSection = (deliveryGroups) =>
     })
     .join("");
 
-const buildEmailHtml = ({ order, deliveryGroups }) => `
+const buildEmailHtml = ({ order, deliveryGroups, supportEmail }) => `
   <div style="font-family:Arial,Helvetica,sans-serif;background:#f8fafc;padding:32px 16px;color:#0f172a;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
+      ${escapeHtml(getEmailPreheader(order))}
+    </div>
     <div style="max-width:720px;margin:0 auto;background:#ffffff;border-radius:24px;border:1px solid #e2e8f0;overflow:hidden;">
       <div style="padding:28px 28px 20px;background:linear-gradient(135deg,#0f172a,#1e293b);">
-        <p style="margin:0 0 8px;color:#93c5fd;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;">DesignAI Store</p>
-        <h1 style="margin:0;color:#ffffff;font-size:28px;line-height:1.2;">Akun premium kamu sudah siap</h1>
+        <p style="margin:0 0 8px;color:#93c5fd;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;">${STORE_NAME}</p>
+        <h1 style="margin:0;color:#ffffff;font-size:28px;line-height:1.2;">Detail akun untuk pesanan kamu sudah siap</h1>
         <p style="margin:12px 0 0;color:#cbd5e1;font-size:15px;line-height:1.6;">
           Halo ${escapeHtml(order.customer_name)}, pembayaran untuk order <strong>${escapeHtml(
             order.order_id
@@ -94,6 +125,9 @@ const buildEmailHtml = ({ order, deliveryGroups }) => `
           <p style="margin:8px 0 0;font-size:15px;color:#0f172a;"><strong>Total dibayar:</strong> ${formatCurrency(
             order.payment_total || order.total_price
           )}</p>
+          <p style="margin:8px 0 0;font-size:14px;color:#475569;">Anda menerima email ini karena melakukan pembelian di ${escapeHtml(
+            STORE_URL
+          )}.</p>
         </div>
 
         ${buildCredentialsSection(deliveryGroups)}
@@ -104,18 +138,26 @@ const buildEmailHtml = ({ order, deliveryGroups }) => `
             <li>Simpan email ini di tempat yang aman.</li>
             <li>Segera ganti password jika produk mengizinkan perubahan sandi.</li>
             <li>Jangan membagikan kredensial ke pihak lain tanpa izin.</li>
+            <li>${buildSecurityNote()}</li>
           </ul>
         </div>
 
         <p style="margin:24px 0 0;color:#64748b;font-size:14px;line-height:1.7;">
-          Jika ada kendala login atau akun tidak sesuai, balas email ini agar tim kami bisa membantu lebih cepat.
+          Jika ada kendala login atau akun tidak sesuai, balas email ini atau hubungi <a href="mailto:${escapeHtml(
+            supportEmail
+          )}" style="color:#1d4ed8;text-decoration:none;">${escapeHtml(
+            supportEmail
+          )}</a> agar tim kami bisa membantu lebih cepat.
+        </p>
+        <p style="margin:16px 0 0;color:#94a3b8;font-size:12px;line-height:1.7;">
+          Email transaksi ini dikirim otomatis oleh ${STORE_NAME}. Mohon jangan tandai email ini sebagai spam agar detail pesanan berikutnya masuk ke inbox utama.
         </p>
       </div>
     </div>
   </div>
 `;
 
-const buildEmailText = ({ order, deliveryGroups }) => {
+const buildEmailText = ({ order, deliveryGroups, supportEmail }) => {
   const sections = deliveryGroups
     .map((group) => {
       const accountsText = group.accounts
@@ -142,15 +184,17 @@ const buildEmailText = ({ order, deliveryGroups }) => {
     "",
     `Pembayaran untuk order ${order.order_id} sudah berhasil diverifikasi.`,
     `Total dibayar: ${formatCurrency(order.payment_total || order.total_price)}`,
+    `Website: ${STORE_URL}`,
     "",
-    "Berikut akun premium kamu:",
+    "Berikut detail akun untuk pesanan kamu:",
     "",
     sections,
     "",
     "Tips keamanan:",
     "- Simpan email ini di tempat yang aman.",
     "- Segera ganti password jika produk mengizinkan perubahan sandi.",
-    "- Balas email ini jika ada kendala login.",
+    `- ${buildSecurityNote()}`,
+    `- Hubungi ${supportEmail} jika ada kendala login.`,
   ].join("\n");
 };
 
@@ -202,13 +246,25 @@ const normalizeResendSendError = (error) => {
 const sendOrderDeliveryEmail = async ({ order, deliveryGroups }) => {
   const resend = getResendClient();
   const { fromEmail, replyToEmail } = getResendConfig();
+  const supportEmail = getSupportEmail({ fromEmail, replyToEmail });
+  const fromDomain = extractEmailDomain(fromEmail);
+  const replyToDomain = extractEmailDomain(replyToEmail);
+
+  if (replyToDomain && fromDomain && replyToDomain !== fromDomain) {
+    console.warn(
+      `Resend deliverability warning: RESEND_REPLY_TO memakai domain berbeda (${replyToDomain}) dari sender (${fromDomain}). Untuk inbox placement yang lebih baik, gunakan reply-to dengan domain yang sama.`
+    );
+  }
 
   const { data, error } = await resend.emails.send({
     from: fromEmail,
     to: [order.customer_email],
-    subject: `Akun premium order ${order.order_id} sudah siap`,
-    html: buildEmailHtml({ order, deliveryGroups }),
-    text: buildEmailText({ order, deliveryGroups }),
+    subject: `${STORE_NAME} | Detail akun untuk pesanan ${order.order_id}`,
+    html: buildEmailHtml({ order, deliveryGroups, supportEmail }),
+    text: buildEmailText({ order, deliveryGroups, supportEmail }),
+    headers: {
+      "X-Entity-Ref-ID": order.order_id,
+    },
     ...(replyToEmail ? { replyTo: replyToEmail } : {}),
   });
 
