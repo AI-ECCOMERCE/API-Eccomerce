@@ -3,6 +3,8 @@ const { getResendClient, getResendConfig } = require("../config/resend");
 const STORE_NAME = "Poinstore";
 const STORE_URL = "https://www.poinstore.my.id";
 const DEFAULT_SUPPORT_EMAIL = "support@poinstore.my.id";
+const ADMIN_WHATSAPP_DISPLAY = "085656252426";
+const ADMIN_WHATSAPP_URL = "https://wa.me/6285656252426";
 
 const escapeHtml = (value) =>
   String(value || "")
@@ -34,73 +36,16 @@ const getSupportEmail = ({ fromEmail, replyToEmail }) =>
   DEFAULT_SUPPORT_EMAIL;
 
 const getEmailPreheader = (order) =>
-  `Detail pesanan ${order.order_id} dan akses akun dari ${STORE_NAME}.`;
+  `Pembayaran untuk pesanan ${order.order_id} sudah berhasil. Admin ${STORE_NAME} akan segera menghubungi Anda via WhatsApp.`;
 
-const buildSecurityNote = () =>
-  "Untuk keamanan, jangan teruskan email ini ke orang lain.";
+const buildCustomerPhoneRow = (order) =>
+  order.customer_phone
+    ? `<p style="margin:8px 0 0;font-size:15px;color:#0f172a;"><strong>Nomor WhatsApp:</strong> ${escapeHtml(
+        order.customer_phone
+      )}</p>`
+    : "";
 
-const buildCredentialsSection = (deliveryGroups) =>
-  deliveryGroups
-    .map((group) => {
-      const accountsHtml = group.accounts
-        .map(
-          (account, index) => `
-            <div style="border:1px solid #e2e8f0;border-radius:14px;padding:16px;background:#ffffff;margin-top:12px;">
-              <p style="margin:0 0 10px;font-size:12px;font-weight:700;color:#475569;letter-spacing:0.04em;text-transform:uppercase;">
-                Akun ${index + 1}
-              </p>
-              <table style="width:100%;border-collapse:collapse;">
-                <tr>
-                  <td style="padding:6px 0;color:#64748b;font-size:14px;width:140px;">Email Login</td>
-                  <td style="padding:6px 0;color:#0f172a;font-size:14px;font-weight:600;">${escapeHtml(
-                    account.login_email
-                  )}</td>
-                </tr>
-                <tr>
-                  <td style="padding:6px 0;color:#64748b;font-size:14px;">Password</td>
-                  <td style="padding:6px 0;color:#0f172a;font-size:14px;font-weight:600;">${escapeHtml(
-                    account.login_password
-                  )}</td>
-                </tr>
-                ${
-                  account.account_name
-                    ? `<tr>
-                  <td style="padding:6px 0;color:#64748b;font-size:14px;">Label</td>
-                  <td style="padding:6px 0;color:#0f172a;font-size:14px;">${escapeHtml(
-                    account.account_name
-                  )}</td>
-                </tr>`
-                    : ""
-                }
-                ${
-                  account.account_notes
-                    ? `<tr>
-                  <td style="padding:6px 0;color:#64748b;font-size:14px;vertical-align:top;">Catatan</td>
-                  <td style="padding:6px 0;color:#0f172a;font-size:14px;white-space:pre-line;">${escapeHtml(
-                    account.account_notes
-                  )}</td>
-                </tr>`
-                    : ""
-                }
-              </table>
-            </div>
-          `
-        )
-        .join("");
-
-      return `
-        <div style="margin-top:24px;padding:20px;border-radius:18px;background:#f8fafc;border:1px solid #e2e8f0;">
-          <h2 style="margin:0 0 8px;font-size:18px;color:#0f172a;">${escapeHtml(
-            group.productName
-          )}</h2>
-          <p style="margin:0;color:#64748b;font-size:14px;">Jumlah akun: ${group.accounts.length}</p>
-          ${accountsHtml}
-        </div>
-      `;
-    })
-    .join("");
-
-const buildEmailHtml = ({ order, deliveryGroups, supportEmail }) => `
+const buildEmailHtml = ({ order, supportEmail }) => `
   <div style="font-family:Arial,Helvetica,sans-serif;background:#f8fafc;padding:32px 16px;color:#0f172a;">
     <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
       ${escapeHtml(getEmailPreheader(order))}
@@ -108,9 +53,9 @@ const buildEmailHtml = ({ order, deliveryGroups, supportEmail }) => `
     <div style="max-width:720px;margin:0 auto;background:#ffffff;border-radius:24px;border:1px solid #e2e8f0;overflow:hidden;">
       <div style="padding:28px 28px 20px;background:linear-gradient(135deg,#0f172a,#1e293b);">
         <p style="margin:0 0 8px;color:#93c5fd;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;">${STORE_NAME}</p>
-        <h1 style="margin:0;color:#ffffff;font-size:28px;line-height:1.2;">Detail akun untuk pesanan kamu sudah siap</h1>
+        <h1 style="margin:0;color:#ffffff;font-size:28px;line-height:1.2;">Pembayaran Anda berhasil kami terima</h1>
         <p style="margin:12px 0 0;color:#cbd5e1;font-size:15px;line-height:1.6;">
-          Halo ${escapeHtml(order.customer_name)}, pembayaran untuk order <strong>${escapeHtml(
+          Halo ${escapeHtml(order.customer_name)}, terima kasih. Pembayaran untuk pesanan <strong>${escapeHtml(
             order.order_id
           )}</strong> sudah berhasil kami verifikasi.
         </p>
@@ -118,84 +63,70 @@ const buildEmailHtml = ({ order, deliveryGroups, supportEmail }) => `
 
       <div style="padding:28px;">
         <div style="border:1px solid #e2e8f0;border-radius:18px;padding:18px;background:#f8fafc;">
-          <p style="margin:0 0 6px;color:#64748b;font-size:13px;">Ringkasan order</p>
+          <p style="margin:0 0 6px;color:#64748b;font-size:13px;">Ringkasan pesanan</p>
           <p style="margin:0;font-size:15px;color:#0f172a;"><strong>Order ID:</strong> ${escapeHtml(
             order.order_id
           )}</p>
           <p style="margin:8px 0 0;font-size:15px;color:#0f172a;"><strong>Total dibayar:</strong> ${formatCurrency(
             order.payment_total || order.total_price
           )}</p>
+          ${buildCustomerPhoneRow(order)}
           <p style="margin:8px 0 0;font-size:14px;color:#475569;">Anda menerima email ini karena melakukan pembelian di ${escapeHtml(
             STORE_URL
           )}.</p>
         </div>
 
-        ${buildCredentialsSection(deliveryGroups)}
-
-        <div style="margin-top:24px;padding:20px;border-radius:18px;background:#eff6ff;border:1px solid #bfdbfe;">
-          <p style="margin:0 0 10px;font-size:15px;font-weight:700;color:#1d4ed8;">Tips keamanan</p>
-          <ul style="margin:0;padding-left:20px;color:#1e3a8a;font-size:14px;line-height:1.7;">
-            <li>Simpan email ini di tempat yang aman.</li>
-            <li>Segera ganti password jika produk mengizinkan perubahan sandi.</li>
-            <li>Jangan membagikan kredensial ke pihak lain tanpa izin.</li>
-            <li>${buildSecurityNote()}</li>
-          </ul>
+        <div style="margin-top:24px;padding:22px;border-radius:18px;background:#ecfdf5;border:1px solid #bbf7d0;">
+          <p style="margin:0 0 10px;font-size:15px;font-weight:700;color:#047857;">Langkah berikutnya</p>
+          <p style="margin:0;color:#064e3b;font-size:15px;line-height:1.7;">
+            Admin kami akan segera menghubungi Anda melalui WhatsApp sesuai nomor yang sudah Anda isi saat checkout. Mohon pastikan nomor WhatsApp tersebut aktif agar proses pesanan dapat kami lanjutkan dengan cepat.
+          </p>
+          <p style="margin:14px 0 0;color:#064e3b;font-size:15px;line-height:1.7;">
+            Jika ingin menghubungi kami lebih dulu, silakan klik tombol di bawah atau kirim pesan WhatsApp ke <strong>${ADMIN_WHATSAPP_DISPLAY}</strong>.
+          </p>
+          <a href="${ADMIN_WHATSAPP_URL}" style="display:inline-block;margin-top:18px;padding:12px 18px;border-radius:10px;background:#16a34a;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;">
+            Hubungi Admin via WhatsApp
+          </a>
         </div>
 
         <p style="margin:24px 0 0;color:#64748b;font-size:14px;line-height:1.7;">
-          Jika ada kendala login atau akun tidak sesuai, balas email ini atau hubungi <a href="mailto:${escapeHtml(
+          Apabila Anda belum menerima pesan WhatsApp dari admin, Anda juga dapat membalas email ini atau menghubungi <a href="mailto:${escapeHtml(
             supportEmail
           )}" style="color:#1d4ed8;text-decoration:none;">${escapeHtml(
             supportEmail
-          )}</a> agar tim kami bisa membantu lebih cepat.
+          )}</a>.
         </p>
         <p style="margin:16px 0 0;color:#94a3b8;font-size:12px;line-height:1.7;">
-          Email transaksi ini dikirim otomatis oleh ${STORE_NAME}. Mohon jangan tandai email ini sebagai spam agar detail pesanan berikutnya masuk ke inbox utama.
+          Email transaksi ini dikirim otomatis oleh ${STORE_NAME}. Mohon jangan tandai email ini sebagai spam agar informasi pesanan berikutnya masuk ke inbox utama.
         </p>
       </div>
     </div>
   </div>
 `;
 
-const buildEmailText = ({ order, deliveryGroups, supportEmail }) => {
-  const sections = deliveryGroups
-    .map((group) => {
-      const accountsText = group.accounts
-        .map(
-          (account, index) =>
-            [
-              `Akun ${index + 1}`,
-              `Email Login: ${account.login_email}`,
-              `Password: ${account.login_password}`,
-              account.account_name ? `Label: ${account.account_name}` : null,
-              account.account_notes ? `Catatan: ${account.account_notes}` : null,
-            ]
-              .filter(Boolean)
-              .join("\n")
-        )
-        .join("\n\n");
-
-      return `${group.productName}\nJumlah akun: ${group.accounts.length}\n\n${accountsText}`;
-    })
-    .join("\n\n====================\n\n");
-
+const buildEmailText = ({ order, supportEmail }) => {
   return [
     `Halo ${order.customer_name},`,
     "",
-    `Pembayaran untuk order ${order.order_id} sudah berhasil diverifikasi.`,
+    "Terima kasih. Pembayaran Anda sudah berhasil kami terima dan verifikasi.",
+    "",
+    "Ringkasan pesanan:",
+    `Order ID: ${order.order_id}`,
     `Total dibayar: ${formatCurrency(order.payment_total || order.total_price)}`,
+    order.customer_phone ? `Nomor WhatsApp: ${order.customer_phone}` : null,
     `Website: ${STORE_URL}`,
     "",
-    "Berikut detail akun untuk pesanan kamu:",
+    "Langkah berikutnya:",
+    "Admin kami akan segera menghubungi Anda melalui WhatsApp sesuai nomor yang sudah Anda isi saat checkout. Mohon pastikan nomor WhatsApp tersebut aktif agar proses pesanan dapat kami lanjutkan dengan cepat.",
     "",
-    sections,
+    `Jika ingin menghubungi kami lebih dulu, silakan WhatsApp ke ${ADMIN_WHATSAPP_DISPLAY}: ${ADMIN_WHATSAPP_URL}`,
     "",
-    "Tips keamanan:",
-    "- Simpan email ini di tempat yang aman.",
-    "- Segera ganti password jika produk mengizinkan perubahan sandi.",
-    `- ${buildSecurityNote()}`,
-    `- Hubungi ${supportEmail} jika ada kendala login.`,
-  ].join("\n");
+    `Apabila Anda belum menerima pesan WhatsApp dari admin, Anda juga dapat membalas email ini atau menghubungi ${supportEmail}.`,
+    "",
+    `Email transaksi ini dikirim otomatis oleh ${STORE_NAME}.`,
+  ]
+    .filter(Boolean)
+    .join("\n");
 };
 
 const createResendError = (message, options = {}) => {
@@ -243,7 +174,7 @@ const normalizeResendSendError = (error) => {
   );
 };
 
-const sendOrderDeliveryEmail = async ({ order, deliveryGroups }) => {
+const sendOrderDeliveryEmail = async ({ order }) => {
   const resend = getResendClient();
   const { fromEmail, replyToEmail } = getResendConfig();
   const supportEmail = getSupportEmail({ fromEmail, replyToEmail });
@@ -259,9 +190,9 @@ const sendOrderDeliveryEmail = async ({ order, deliveryGroups }) => {
   const { data, error } = await resend.emails.send({
     from: fromEmail,
     to: [order.customer_email],
-    subject: `${STORE_NAME} | Detail akun untuk pesanan ${order.order_id}`,
-    html: buildEmailHtml({ order, deliveryGroups, supportEmail }),
-    text: buildEmailText({ order, deliveryGroups, supportEmail }),
+    subject: `${STORE_NAME} | Pembayaran pesanan ${order.order_id} berhasil`,
+    html: buildEmailHtml({ order, supportEmail }),
+    text: buildEmailText({ order, supportEmail }),
     headers: {
       "X-Entity-Ref-ID": order.order_id,
     },
