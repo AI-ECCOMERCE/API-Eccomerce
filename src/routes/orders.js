@@ -1,4 +1,4 @@
-const express = require("express");
+﻿const express = require("express");
 const router = express.Router();
 const supabase = require("../config/supabase");
 const requireAdminAuth = require("../middleware/requireAdminAuth");
@@ -174,6 +174,20 @@ router.post("/:id/fulfillment/retry", requireAdminAuth, async (req, res) => {
     respondWithError(res, err, {
       context: "POST /orders/:id/fulfillment/retry",
       defaultMessage: "Gagal menjalankan ulang fulfillment order.",
+    });
+  }
+});
+
+// POST /api/orders/:id/payment/sync-admin - Sinkronisasi status Pakasir dari admin panel
+router.post("/:id/payment/sync-admin", requireAdminAuth, async (req, res) => {
+  try {
+    const data = await syncOrderPaymentById(req.params.id);
+    invalidateOrderDerivedCaches();
+    res.json({ success: true, data });
+  } catch (err) {
+    respondWithError(res, err, {
+      context: "POST /orders/:id/payment/sync-admin",
+      defaultMessage: "Gagal menyinkronkan status pembayaran dari Pakasir.",
     });
   }
 });
