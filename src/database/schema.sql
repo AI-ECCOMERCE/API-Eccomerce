@@ -284,3 +284,61 @@ BEGIN
   RETURN TRUE;
 END;
 $$;
+
+-- ==============================================
+-- 8. Tabel Expenses (Pengeluaran)
+-- ==============================================
+CREATE TABLE IF NOT EXISTS expenses (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  date DATE NOT NULL DEFAULT CURRENT_DATE,
+  category TEXT NOT NULL,
+  description TEXT NOT NULL,
+  amount INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ==============================================
+-- 9. Tabel Sellers (Kontak Supplier/Seller)
+-- ==============================================
+CREATE TABLE IF NOT EXISTS sellers (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL,
+  wa TEXT DEFAULT NULL,
+  telegram TEXT DEFAULT NULL,
+  website TEXT DEFAULT NULL,
+  products TEXT[] DEFAULT '{}',
+  notes TEXT DEFAULT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date DESC);
+CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category);
+CREATE INDEX IF NOT EXISTS idx_sellers_name ON sellers(name);
+
+ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sellers ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Service role full access" ON expenses;
+DROP POLICY IF EXISTS "Service role full access" ON sellers;
+CREATE POLICY "Service role full access" ON expenses FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access" ON sellers FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+-- ==============================================
+-- 10. Tabel Incomes (Pemasukan Manual)
+-- ==============================================
+CREATE TABLE IF NOT EXISTS incomes (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  date DATE NOT NULL DEFAULT CURRENT_DATE,
+  category TEXT NOT NULL,
+  description TEXT NOT NULL,
+  amount INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_incomes_date ON incomes(date DESC);
+CREATE INDEX IF NOT EXISTS idx_incomes_category ON incomes(category);
+
+ALTER TABLE incomes ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Service role full access" ON incomes;
+CREATE POLICY "Service role full access" ON incomes FOR ALL TO service_role USING (true) WITH CHECK (true);

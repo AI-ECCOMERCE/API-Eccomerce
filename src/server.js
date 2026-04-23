@@ -10,6 +10,9 @@ const categoryRoutes = require("./routes/categories");
 const dashboardRoutes = require("./routes/dashboard");
 const paymentRoutes = require("./routes/payments");
 const productAccountRoutes = require("./routes/productAccounts");
+const expenseRoutes = require("./routes/expenses");
+const incomeRoutes = require("./routes/incomes");
+const sellerRoutes = require("./routes/sellers");
 const { isPaymentGatewayConfigured } = require("./config/pakasir");
 const { getPaymentAccessSecret } = require("./config/security");
 const {
@@ -89,6 +92,9 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/product-accounts", productAccountRoutes);
+app.use("/api/expenses", expenseRoutes);
+app.use("/api/incomes", incomeRoutes);
+app.use("/api/sellers", sellerRoutes);
 
 // 404 handler
 app.use((req, res) => {

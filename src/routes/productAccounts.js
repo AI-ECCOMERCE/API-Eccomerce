@@ -27,7 +27,7 @@ const normalizeProductAccountError = (error) => {
 
 const validateProductAccountPayload = (payload) => {
   const productId = sanitizeText(payload.product_id);
-  const loginEmail = sanitizeText(payload.login_email).toLowerCase();
+  const loginEmail = sanitizeText(payload.login_email);
   const loginPassword = sanitizeText(payload.login_password);
   const accountName = sanitizeText(payload.account_name);
   const accountNotes = sanitizeText(payload.account_notes);
@@ -39,8 +39,8 @@ const validateProductAccountPayload = (payload) => {
     throw createHttpError("Produk wajib dipilih.");
   }
 
-  if (!loginEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(loginEmail)) {
-    throw createHttpError("Email login akun tidak valid.");
+  if (!loginEmail) {
+    throw createHttpError("Login akun wajib diisi.");
   }
 
   if (!loginPassword) {
